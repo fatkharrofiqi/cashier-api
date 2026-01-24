@@ -21,15 +21,18 @@ type App struct {
 func NewApp() *App {
 	// repository
 	productRepo := repository.NewProductRepository()
+	categoryRepo := repository.NewCategoryRepository()
 
 	// service
 	productService := service.NewProductService(productRepo)
+	categoryService := service.NewCategoryService(categoryRepo)
 
 	// handler
 	productHandler := handler.NewProductHandler(productService)
+	categoryHandler := handler.NewCategoryHandler(categoryService)
 
 	// route
-	routes := route.NewRoute(productHandler)
+	routes := route.NewRoute(productHandler, categoryHandler)
 	routes.Register()
 
 	port := getPort()
