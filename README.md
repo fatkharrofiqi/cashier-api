@@ -58,8 +58,8 @@ PORT=3000 go run cmd/http/main.go
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/products` | Get all products |
-| POST | `/api/products` | Create a new product |
+| GET | `/api/product` | Get all product |
+| POST | `/api/product` | Create a new product |
 | GET | `/api/product/{id}` | Get product by ID |
 | PUT | `/api/product/{id}` | Update product by ID |
 | DELETE | `/api/product/{id}` | Delete product by ID |
@@ -77,14 +77,14 @@ PORT=3000 go run cmd/http/main.go
 
 ### Example Usage
 
-#### Get all products
+#### Get all product
 ```bash
-curl http://localhost:8080/api/products
+curl http://localhost:8080/api/product
 ```
 
 #### Create a product
 ```bash
-curl -X POST http://localhost:8080/api/products \
+curl -X POST http://localhost:8080/api/product \
   -H "Content-Type: application/json" \
   -d '{
     "name": "Coca Cola",
