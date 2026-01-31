@@ -11,11 +11,16 @@ cashier-api/
 │       └── main.go       # Application entry point
 ├── internal/
 │   ├── app/              # Application initialization and configuration
+│   ├── config/           # Configuration and database connection
+│   ├── dto/              # Data transfer objects (request/response)
 │   ├── handler/          # HTTP handlers for API endpoints
-│   ├── model/            # Data models
-│   ├── repository/       # Data access layer (in-memory storage)
+│   ├── model/            # Data models (database entities)
+│   ├── repository/       # Data access layer (PostgreSQL)
 │   ├── route/            # HTTP route definitions
 │   └── service/          # Business logic layer
+├── migrations/           # Database migration files
+├── Makefile            # Build and migration commands
+├── .env                # Environment variables
 ├── go.mod
 └── .gitignore
 ```
@@ -23,8 +28,11 @@ cashier-api/
 ## Features
 
 - Product management with full CRUD operations
+- Category management with full CRUD operations
+- Products can be assigned to categories
 - Clean architecture pattern (Handler → Service → Repository)
-- In-memory data storage
+- PostgreSQL database with migration support
+- DTO separation for clean API layer
 - Graceful server shutdown
 
 ## Getting Started
@@ -32,6 +40,8 @@ cashier-api/
 ### Prerequisites
 
 - Go 1.24.1 or higher
+- PostgreSQL database
+- golang-migrate CLI tool
 
 ### Installation
 
@@ -41,15 +51,35 @@ git clone <repository-url>
 cd cashier-api
 ```
 
-2. Run the application:
+2. Install golang-migrate:
 ```bash
-go run cmd/http/main.go
+make install-migrate
 ```
 
-The server will start on port `8080` by default. You can change the port by setting the `PORT` environment variable:
-
+3. Configure environment:
+Create a `.env` file with your database connection:
 ```bash
-PORT=3000 go run cmd/http/main.go
+DB_CONN=postgresql://user:password@localhost:5432/dbname?sslmode=disable
+PORT=8080
+```
+
+4. Run migrations:
+```bash
+make migrateup
+```
+
+5. Build and run the application:
+```bash
+make start
+```
+
+Or use the Makefile:
+```bash
+make help          # Show all available commands
+make build         # Build the application
+make start         # Build and start the application
+make migrateup     # Run database migrations up
+make migratedown   # Rollback last migration
 ```
 
 ## API Endpoints
@@ -58,7 +88,7 @@ PORT=3000 go run cmd/http/main.go
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/product` | Get all product |
+| GET | `/api/product` | Get all products |
 | POST | `/api/product` | Create a new product |
 | GET | `/api/product/{id}` | Get product by ID |
 | PUT | `/api/product/{id}` | Update product by ID |
@@ -71,25 +101,62 @@ PORT=3000 go run cmd/http/main.go
   "id": 1,
   "name": "Indomie Goreng",
   "price": 3500,
-  "stock": 10
+  "stock": 10,
+  "category_id": 1,
+  "category": {
+    "id": 1,
+    "name": "Makanan",
+    "description": "Kategori makanan ringan"
+  }
+}
+```
+
+### Categories
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/category` | Get all categories |
+| POST | `/api/category` | Create a new category |
+| GET | `/api/category/{id}` | Get category by ID |
+| PUT | `/api/category/{id}` | Update category by ID |
+| DELETE | `/api/category/{id}` | Delete category by ID |
+
+### Category Model
+
+```json
+{
+  "id": 1,
+  "name": "Makanan",
+  "description": "Kategori makanan ringan"
 }
 ```
 
 ### Example Usage
 
-#### Get all product
+#### Get all products
 ```bash
 curl http://localhost:8080/api/product
 ```
 
-#### Create a product
+#### Create a product with category
 ```bash
 curl -X POST http://localhost:8080/api/product \
   -H "Content-Type: application/json" \
   -d '{
     "name": "Coca Cola",
     "price": 5000,
-    "stock": 20
+    "stock": 20,
+    "category_id": 2
+  }'
+```
+
+#### Create a category
+```bash
+curl -X POST http://localhost:8080/api/category \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Minuman",
+    "description": "Kategori minuman"
   }'
 ```
 
@@ -118,10 +185,33 @@ curl -X DELETE http://localhost:8080/api/product/1
 
 This project follows the clean architecture pattern:
 
-- **Handler**: Handles HTTP requests and responses
+- **Handler**: Handles HTTP requests and responses using DTOs
 - **Service**: Contains business logic
-- **Repository**: Manages data access (currently using in-memory storage)
-- **Model**: Defines data structures
+- **Repository**: Manages data access using PostgreSQL
+- **Model**: Defines database entities
+- **DTO**: Defines API request/response structures
+
+### Data Flow
+
+```
+HTTP Request → Handler (DTOs) → Service (Models) → Repository (DB) → PostgreSQL
+                  ↓
+           Response DTOs
+```
+
+## Migrations
+
+The project uses golang-migrate for database schema management. Migration files are located in the `migrations/` directory.
+
+To create a new migration:
+```bash
+make migrate-create NAME=add_new_table
+```
+
+To view migration status:
+```bash
+make migrate-force VERSION=1  # Force to specific version
+```
 
 ## License
 

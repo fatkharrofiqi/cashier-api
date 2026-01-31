@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"cashier-api/internal/dto"
 	"cashier-api/internal/model"
 	"cashier-api/internal/service"
 	"encoding/json"
@@ -22,14 +23,31 @@ func (h *CategoryHandler) Handlecategory(w http.ResponseWriter, r *http.Request)
 
 	switch r.Method {
 	case http.MethodGet:
-		json.NewEncoder(w).Encode(h.service.GetAll())
+		categories, err := h.service.GetAll()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		responses := make([]dto.CategoryResponse, len(categories))
+		for i, c := range categories {
+			responses[i] = h.toCategoryResponse(c)
+		}
+		json.NewEncoder(w).Encode(responses)
 	case http.MethodPost:
-		var c model.Category
-		if err := json.NewDecoder(r.Body).Decode(&c); err != nil {
+		var req dto.CategoryCreateRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, "Invalid request", http.StatusBadRequest)
 			return
 		}
-		json.NewEncoder(w).Encode(h.service.Create(c))
+		category, err := h.service.Create(model.Category{
+			Name:        req.Name,
+			Description: req.Description,
+		})
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		json.NewEncoder(w).Encode(h.toCategoryResponse(*category))
 	default:
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}
@@ -47,28 +65,45 @@ func (h *CategoryHandler) HandleCategoryByID(w http.ResponseWriter, r *http.Requ
 
 	switch r.Method {
 	case http.MethodGet:
-		if c, ok := h.service.GetByID(id); ok {
-			json.NewEncoder(w).Encode(c)
+		c, err := h.service.GetByID(id)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusNotFound)
 			return
 		}
+		json.NewEncoder(w).Encode(h.toCategoryResponse(*c))
 	case http.MethodPut:
-		var c model.Category
-		if err := json.NewDecoder(r.Body).Decode(&c); err != nil {
+		var req dto.CategoryUpdateRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, "Invalid request", http.StatusBadRequest)
 			return
 		}
-		if updated, ok := h.service.Update(id, c); ok {
-			json.NewEncoder(w).Encode(updated)
+		updated, err := h.service.Update(id, model.Category{
+			Name:        req.Name,
+			Description: req.Description,
+		})
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusNotFound)
 			return
 		}
+		json.NewEncoder(w).Encode(h.toCategoryResponse(*updated))
 	case http.MethodDelete:
-		if h.service.Delete(id) {
-			json.NewEncoder(w).Encode(map[string]string{
-				"message": "Delete success",
-			})
+		if err := h.service.Delete(id); err != nil {
+			http.Error(w, err.Error(), http.StatusNotFound)
 			return
 		}
+		json.NewEncoder(w).Encode(map[string]string{
+			"message": "Delete success",
+		})
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}
-
-	http.Error(w, "Category not found", http.StatusNotFound)
 }
+
+func (h *CategoryHandler) toCategoryResponse(c model.Category) dto.CategoryResponse {
+	return dto.CategoryResponse{
+		ID:          c.ID,
+		Name:        c.Name,
+		Description: c.Description,
+	}
+}
+

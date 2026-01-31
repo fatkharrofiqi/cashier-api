@@ -1,64 +1,127 @@
 package repository
 
-import "cashier-api/internal/model"
+import (
+	"cashier-api/internal/model"
+	"database/sql"
+	"fmt"
+)
 
 type ProductRepository interface {
-	FindAll() []model.Product
-	FindByID(id int) (*model.Product, bool)
-	Create(product model.Product) model.Product
-	Update(id int, product model.Product) (*model.Product, bool)
-	Delete(id int) bool
+	FindAll() ([]model.Product, error)
+	FindByID(id int) (*model.Product, error)
+	Create(product model.Product) (*model.Product, error)
+	Update(id int, product model.Product) (*model.Product, error)
+	Delete(id int) error
 }
 
 type productRepository struct {
-	products []model.Product
+	db *sql.DB
 }
 
-func NewProductRepository() ProductRepository {
-	return &productRepository{
-		products: []model.Product{
-			{ID: 1, Name: "Indomie Goreng", Price: 3500, Stock: 10},
-			{ID: 2, Name: "Vit 1000ml", Price: 3000, Stock: 40},
-		},
+func NewProductRepository(db *sql.DB) ProductRepository {
+	return &productRepository{db: db}
+}
+
+func (r *productRepository) FindAll() ([]model.Product, error) {
+	query := `
+		SELECT p.id, p.name, p.price, p.stock, p.category_id, c.id, c.name, c.description
+		FROM products p
+		LEFT JOIN categories c ON p.category_id = c.id
+		ORDER BY p.id
+	`
+	rows, err := r.db.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query products: %w", err)
 	}
-}
+	defer rows.Close()
 
-func (r *productRepository) FindAll() []model.Product {
-	return r.products
-}
-
-func (r *productRepository) FindByID(id int) (*model.Product, bool) {
-	for _, p := range r.products {
-		if p.ID == id {
-			return &p, true
+	var products []model.Product
+	for rows.Next() {
+		var p model.Product
+		var category model.Category
+		if err := rows.Scan(&p.ID, &p.Name, &p.Price, &p.Stock, &p.CategoryID, &category.ID, &category.Name, &category.Description); err != nil {
+			return nil, fmt.Errorf("failed to scan product: %w", err)
 		}
-	}
-	return nil, false
-}
-
-func (r *productRepository) Create(product model.Product) model.Product {
-	product.ID = len(r.products) + 1
-	r.products = append(r.products, product)
-	return product
-}
-
-func (r *productRepository) Update(id int, product model.Product) (*model.Product, bool) {
-	for i := range r.products {
-		if r.products[i].ID == id {
-			product.ID = id
-			r.products[i] = product
-			return &product, true
+		if p.CategoryID != nil && *p.CategoryID > 0 {
+			p.Category = &category
 		}
+		products = append(products, p)
 	}
-	return nil, false
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating products: %w", err)
+	}
+
+	return products, nil
 }
 
-func (r *productRepository) Delete(id int) bool {
-	for i, p := range r.products {
-		if p.ID == id {
-			r.products = append(r.products[:i], r.products[i+1:]...)
-			return true
-		}
+func (r *productRepository) FindByID(id int) (*model.Product, error) {
+	query := `
+		SELECT p.id, p.name, p.price, p.stock, p.category_id, c.id, c.name, c.description
+		FROM products p
+		LEFT JOIN categories c ON p.category_id = c.id
+		WHERE p.id = $1
+	`
+	var p model.Product
+	var categoryID sql.NullInt64
+	var category model.Category
+	err := r.db.QueryRow(query, id).Scan(&p.ID, &p.Name, &p.Price, &p.Stock, &categoryID, &category.ID, &category.Name, &category.Description)
+	if err == sql.ErrNoRows {
+		return nil, fmt.Errorf("product not found")
 	}
-	return false
+	if err != nil {
+		return nil, fmt.Errorf("failed to query product: %w", err)
+	}
+	if categoryID.Valid {
+		p.Category = &category
+	}
+	return &p, nil
+}
+
+func (r *productRepository) Create(product model.Product) (*model.Product, error) {
+	query := "INSERT INTO products (name, price, stock, category_id) VALUES ($1, $2, $3, $4) RETURNING id"
+	err := r.db.QueryRow(query, product.Name, product.Price, product.Stock, product.CategoryID).Scan(&product.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create product: %w", err)
+	}
+	return &product, nil
+}
+
+func (r *productRepository) Update(id int, product model.Product) (*model.Product, error) {
+	query := "UPDATE products SET name = $1, price = $2, stock = $3, category_id = $4 WHERE id = $5"
+	result, err := r.db.Exec(query, product.Name, product.Price, product.Stock, product.CategoryID, id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update product: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return nil, fmt.Errorf("product not found")
+	}
+
+	product.ID = id
+	return &product, nil
+}
+
+func (r *productRepository) Delete(id int) error {
+	query := "DELETE FROM products WHERE id = $1"
+	result, err := r.db.Exec(query, id)
+	if err != nil {
+		return fmt.Errorf("failed to delete product: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("product not found")
+	}
+
+	return nil
 }

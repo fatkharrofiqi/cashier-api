@@ -1,12 +1,16 @@
 package app
 
 import (
+	"cashier-api/internal/config/config"
+	"cashier-api/internal/config/db"
 	"cashier-api/internal/handler"
 	"cashier-api/internal/repository"
 	"cashier-api/internal/route"
 	"cashier-api/internal/service"
 	"context"
+	"database/sql"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -16,12 +20,23 @@ import (
 
 type App struct {
 	httpServer *http.Server
+	db         *sql.DB
 }
 
 func NewApp() *App {
+	cfg, err := config.NewConfig()
+	if err != nil {
+		log.Fatalf("Failed to load config: %v", err)
+	}
+
+	dbConn, err := db.NewDB(cfg.DBConn)
+	if err != nil {
+		log.Fatalf("Failed to connect to database: %v", err)
+	}
+
 	// repository
-	productRepo := repository.NewProductRepository()
-	categoryRepo := repository.NewCategoryRepository()
+	productRepo := repository.NewProductRepository(dbConn)
+	categoryRepo := repository.NewCategoryRepository(dbConn)
 
 	// service
 	productService := service.NewProductService(productRepo)
@@ -35,14 +50,13 @@ func NewApp() *App {
 	routes := route.NewRoute(productHandler, categoryHandler)
 	routes.Register()
 
-	port := getPort()
-
 	server := &http.Server{
-		Addr: ":" + port,
+		Addr: ":" + cfg.Port,
 	}
 
 	return &App{
 		httpServer: server,
+		db:         dbConn,
 	}
 }
 
@@ -69,11 +83,4 @@ func (a *App) Run() {
 	defer cancel()
 
 	_ = a.httpServer.Shutdown(ctx)
-}
-
-func getPort() string {
-	if port := os.Getenv("PORT"); port != "" {
-		return port
-	}
-	return "8080"
 }
