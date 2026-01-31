@@ -38,12 +38,21 @@ func (r *productRepository) FindAll() ([]model.Product, error) {
 	var products []model.Product
 	for rows.Next() {
 		var p model.Product
-		var category model.Category
-		if err := rows.Scan(&p.ID, &p.Name, &p.Price, &p.Stock, &p.CategoryID, &category.ID, &category.Name, &category.Description); err != nil {
+		var categoryID sql.NullInt64
+		var categoryIDFromJoin sql.NullInt64
+		var categoryName sql.NullString
+		var categoryDescription sql.NullString
+		if err := rows.Scan(&p.ID, &p.Name, &p.Price, &p.Stock, &categoryID, &categoryIDFromJoin, &categoryName, &categoryDescription); err != nil {
 			return nil, fmt.Errorf("failed to scan product: %w", err)
 		}
-		if p.CategoryID != nil && *p.CategoryID > 0 {
-			p.Category = &category
+		if categoryID.Valid && categoryIDFromJoin.Valid {
+			p.CategoryID = new(int)
+			*p.CategoryID = int(categoryID.Int64)
+			p.Category = &model.Category{
+				ID:          int(categoryIDFromJoin.Int64),
+				Name:        categoryName.String,
+				Description: categoryDescription.String,
+			}
 		}
 		products = append(products, p)
 	}
