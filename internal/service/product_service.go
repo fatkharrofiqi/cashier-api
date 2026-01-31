@@ -6,11 +6,11 @@ import (
 )
 
 type ProductService interface {
-	GetAll() []model.Product
-	GetByID(id int) (*model.Product, bool)
-	Create(product model.Product) model.Product
-	Update(id int, product model.Product) (*model.Product, bool)
-	Delete(id int) bool
+	GetAll() ([]model.Product, error)
+	GetByID(id int) (*model.Product, error)
+	Create(product model.Product) (*model.Product, error)
+	Update(id int, product model.Product) (*model.Product, error)
+	Delete(id int) error
 }
 
 type productService struct {
@@ -21,22 +21,22 @@ func NewProductService(repo repository.ProductRepository) ProductService {
 	return &productService{repo}
 }
 
-func (s *productService) GetAll() []model.Product {
+func (s *productService) GetAll() ([]model.Product, error) {
 	return s.repo.FindAll()
 }
 
-func (s *productService) GetByID(id int) (*model.Product, bool) {
+func (s *productService) GetByID(id int) (*model.Product, error) {
 	return s.repo.FindByID(id)
 }
 
-func (s *productService) Create(product model.Product) model.Product {
+func (s *productService) Create(product model.Product) (*model.Product, error) {
 	return s.repo.Create(product)
 }
 
-func (s *productService) Update(id int, product model.Product) (*model.Product, bool) {
+func (s *productService) Update(id int, product model.Product) (*model.Product, error) {
 	return s.repo.Update(id, product)
 }
 
-func (s *productService) Delete(id int) bool {
+func (s *productService) Delete(id int) error {
 	return s.repo.Delete(id)
 }
