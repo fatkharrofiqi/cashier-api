@@ -9,13 +9,15 @@ type Route struct {
 	productHandler      *handler.ProductHandler
 	categoryHandler     *handler.CategoryHandler
 	transactionHandler *handler.TransactionHandler
+	reportHandler      *handler.ReportHandler
 }
 
-func NewRoute(productHandler *handler.ProductHandler, categoryHandler *handler.CategoryHandler, transactionHandler *handler.TransactionHandler) *Route {
+func NewRoute(productHandler *handler.ProductHandler, categoryHandler *handler.CategoryHandler, transactionHandler *handler.TransactionHandler, reportHandler *handler.ReportHandler) *Route {
 	return &Route{
 		productHandler:      productHandler,
 		categoryHandler:     categoryHandler,
 		transactionHandler: transactionHandler,
+		reportHandler:      reportHandler,
 	}
 }
 
@@ -30,6 +32,10 @@ func (r *Route) Register() {
 
 	// Transaction routes
 	http.HandleFunc("/api/checkout", r.transactionHandler.HandleCheckout)
+
+	// Report routes
+	http.HandleFunc("/api/report/today", r.reportHandler.HandleTodayReport)
+	http.HandleFunc("/api/report", r.reportHandler.HandleDateRangeReport)
 
 	// Health check
 	http.HandleFunc("/health", healthHandler)

@@ -40,10 +40,12 @@ func NewApp() *App {
 	categoryRepo := repository.NewCategoryRepository(dbConn)
 	transactionRepo := repository.NewTransactionRepository(dbConn)
 	transactionDetailRepo := repository.NewTransactionDetailRepository(dbConn)
+	reportRepo := repository.NewReportRepository(dbConn)
 
 	// service
 	productService := service.NewProductService(productRepo)
 	categoryService := service.NewCategoryService(categoryRepo)
+	reportService := service.NewReportService(reportRepo)
 
 	// uow
 	unitOfWork := uow.NewUnitOfWork(dbConn)
@@ -55,9 +57,10 @@ func NewApp() *App {
 	productHandler := handler.NewProductHandler(productService)
 	categoryHandler := handler.NewCategoryHandler(categoryService)
 	transactionHandler := handler.NewTransactionHandler(transactionService)
+	reportHandler := handler.NewReportHandler(reportService)
 
 	// route
-	routes := route.NewRoute(productHandler, categoryHandler, transactionHandler)
+	routes := route.NewRoute(productHandler, categoryHandler, transactionHandler, reportHandler)
 	routes.Register()
 
 	server := &http.Server{
