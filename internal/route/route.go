@@ -6,14 +6,16 @@ import (
 )
 
 type Route struct {
-	productHandler  *handler.ProductHandler
-	categoryHandler *handler.CategoryHandler
+	productHandler      *handler.ProductHandler
+	categoryHandler     *handler.CategoryHandler
+	transactionHandler *handler.TransactionHandler
 }
 
-func NewRoute(productHandler *handler.ProductHandler, categoryHandler *handler.CategoryHandler) *Route {
+func NewRoute(productHandler *handler.ProductHandler, categoryHandler *handler.CategoryHandler, transactionHandler *handler.TransactionHandler) *Route {
 	return &Route{
-		productHandler:  productHandler,
-		categoryHandler: categoryHandler,
+		productHandler:      productHandler,
+		categoryHandler:     categoryHandler,
+		transactionHandler: transactionHandler,
 	}
 }
 
@@ -25,6 +27,9 @@ func (r *Route) Register() {
 	// Category routes
 	http.HandleFunc("/api/category", r.categoryHandler.Handlecategory)
 	http.HandleFunc("/api/category/", r.categoryHandler.HandleCategoryByID)
+
+	// Transaction routes
+	http.HandleFunc("/api/checkout", r.transactionHandler.HandleCheckout)
 
 	// Health check
 	http.HandleFunc("/health", healthHandler)

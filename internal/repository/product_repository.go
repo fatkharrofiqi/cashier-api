@@ -2,6 +2,8 @@ package repository
 
 import (
 	"cashier-api/internal/model"
+	"cashier-api/internal/uow"
+	"context"
 	"database/sql"
 	"fmt"
 )
@@ -9,9 +11,11 @@ import (
 type ProductRepository interface {
 	FindAll(name string) ([]model.Product, error)
 	FindByID(id int) (*model.Product, error)
+	FindByIDForUpdate(ctx context.Context, id int) (*model.Product, error)
 	Create(product model.Product) (*model.Product, error)
 	Update(id int, product model.Product) (*model.Product, error)
 	Delete(id int) error
+	UpdateStock(ctx context.Context, productID, quantity int) error
 }
 
 type productRepository struct {
@@ -92,6 +96,32 @@ func (r *productRepository) FindByID(id int) (*model.Product, error) {
 	return &p, nil
 }
 
+func (r *productRepository) FindByIDForUpdate(ctx context.Context, id int) (*model.Product, error) {
+	executor := uow.GetExecutor(ctx, r.db)
+	query := `
+		SELECT p.id, p.name, p.price, p.stock, p.category_id
+		FROM products p
+		WHERE p.id = $1
+		FOR UPDATE
+	`
+	var p model.Product
+	var categoryID sql.NullInt64
+	err := executor.QueryRowContext(ctx, query, id).Scan(&p.ID, &p.Name, &p.Price, &p.Stock, &categoryID)
+	if err == sql.ErrNoRows {
+		return nil, fmt.Errorf("product not found")
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to query product: %w", err)
+	}
+
+	if categoryID.Valid {
+		p.CategoryID = new(int)
+		*p.CategoryID = int(categoryID.Int64)
+	}
+
+	return &p, nil
+}
+
 func (r *productRepository) Create(product model.Product) (*model.Product, error) {
 	query := "INSERT INTO products (name, price, stock, category_id) VALUES ($1, $2, $3, $4) RETURNING id"
 	err := r.db.QueryRow(query, product.Name, product.Price, product.Stock, product.CategoryID).Scan(&product.ID)
@@ -135,6 +165,26 @@ func (r *productRepository) Delete(id int) error {
 
 	if rowsAffected == 0 {
 		return fmt.Errorf("product not found")
+	}
+
+	return nil
+}
+
+func (r *productRepository) UpdateStock(ctx context.Context, productID, quantity int) error {
+	executor := uow.GetExecutor(ctx, r.db)
+	query := "UPDATE products SET stock = stock - $1 WHERE id = $2 AND stock >= $1"
+	result, err := executor.ExecContext(ctx, query, quantity, productID)
+	if err != nil {
+		return fmt.Errorf("failed to update product stock: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("insufficient stock or product not found")
 	}
 
 	return nil

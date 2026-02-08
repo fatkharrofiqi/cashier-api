@@ -7,6 +7,7 @@ import (
 	"cashier-api/internal/repository"
 	"cashier-api/internal/route"
 	"cashier-api/internal/service"
+	"cashier-api/internal/uow"
 	"context"
 	"database/sql"
 	"fmt"
@@ -37,17 +38,26 @@ func NewApp() *App {
 	// repository
 	productRepo := repository.NewProductRepository(dbConn)
 	categoryRepo := repository.NewCategoryRepository(dbConn)
+	transactionRepo := repository.NewTransactionRepository(dbConn)
+	transactionDetailRepo := repository.NewTransactionDetailRepository(dbConn)
 
 	// service
 	productService := service.NewProductService(productRepo)
 	categoryService := service.NewCategoryService(categoryRepo)
 
+	// uow
+	unitOfWork := uow.NewUnitOfWork(dbConn)
+
+	// transaction service with uow
+	transactionService := service.NewTransactionService(productRepo, transactionRepo, transactionDetailRepo, unitOfWork)
+
 	// handler
 	productHandler := handler.NewProductHandler(productService)
 	categoryHandler := handler.NewCategoryHandler(categoryService)
+	transactionHandler := handler.NewTransactionHandler(transactionService)
 
 	// route
-	routes := route.NewRoute(productHandler, categoryHandler)
+	routes := route.NewRoute(productHandler, categoryHandler, transactionHandler)
 	routes.Register()
 
 	server := &http.Server{
