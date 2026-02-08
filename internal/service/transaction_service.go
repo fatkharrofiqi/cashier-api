@@ -78,17 +78,19 @@ func (s *transactionService) Checkout(req dto.CheckoutRequest) (*dto.CheckoutRes
 			return fmt.Errorf("failed to create transaction: %w", err)
 		}
 
+		details := make([]model.TransactionDetail, 0, len(items))
 		for _, item := range items {
-			detail := model.TransactionDetail{
+			details = append(details, model.TransactionDetail{
 				TransactionID: createdTransaction.ID,
 				ProductID:     item.ProductID,
 				Quantity:      item.Quantity,
 				Subtotal:      item.Subtotal,
-			}
+			})
+		}
 
-			if _, err := s.transactionDetailRepo.Create(ctx, detail); err != nil {
-				return fmt.Errorf("failed to create transaction detail: %w", err)
-			}
+		_, err = s.transactionDetailRepo.BulkCreate(ctx, details)
+		if err != nil {
+			return fmt.Errorf("failed to create transaction details: %w", err)
 		}
 
 		for _, item := range req.Items {

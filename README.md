@@ -17,7 +17,8 @@ cashier-api/
 │   ├── model/            # Data models (database entities)
 │   ├── repository/       # Data access layer (PostgreSQL)
 │   ├── route/            # HTTP route definitions
-│   └── service/          # Business logic layer
+│   ├── service/          # Business logic layer
+│   └── uow/              # Unit of Work pattern implementation
 ├── migrations/           # Database migration files
 ├── Makefile            # Build and migration commands
 ├── .env                # Environment variables
@@ -30,6 +31,9 @@ cashier-api/
 - Product management with full CRUD operations
 - Category management with full CRUD operations
 - Products can be assigned to categories
+- Transaction management with checkout functionality
+- Sales reports (daily and date range)
+- Unit of Work (UoW) pattern for transactional operations
 - Clean architecture pattern (Handler → Service → Repository)
 - PostgreSQL database with migration support
 - DTO separation for clean API layer
@@ -131,6 +135,76 @@ make migratedown   # Rollback last migration
 }
 ```
 
+### Transactions (Checkout)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/checkout` | Process checkout transaction |
+
+#### Checkout Request Model
+
+```json
+{
+  "items": [
+    {
+      "product_id": 1,
+      "quantity": 2
+    },
+    {
+      "product_id": 2,
+      "quantity": 1
+    }
+  ]
+}
+```
+
+#### Checkout Response Model
+
+```json
+{
+  "transaction_id": 1,
+  "total_amount": 12000,
+  "created_at": "2026-02-08T12:00:00Z",
+  "items": [
+    {
+      "product_id": 1,
+      "quantity": 2,
+      "subtotal": 8000
+    },
+    {
+      "product_id": 2,
+      "quantity": 1,
+      "subtotal": 4000
+    }
+  ]
+}
+```
+
+### Reports
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/report/today` | Get today's sales report |
+| GET | `/api/report` | Get sales report by date range |
+
+#### Report Query Parameters (for date range)
+
+- `start_date` (required) - Start date in YYYY-MM-DD format
+- `end_date` (required) - End date in YYYY-MM-DD format
+
+#### Report Response Model
+
+```json
+{
+  "total_revenue": 45000,
+  "total_transactions": 5,
+  "best_selling_product": {
+    "name": "Indomie Goreng",
+    "quantity_sold": 12
+  }
+}
+```
+
 ### Example Usage
 
 #### Get all products
@@ -181,6 +255,28 @@ curl -X PUT http://localhost:8080/api/product/1 \
 curl -X DELETE http://localhost:8080/api/product/1
 ```
 
+#### Process Checkout
+```bash
+curl -X POST http://localhost:8080/api/checkout \
+  -H "Content-Type: application/json" \
+  -d '{
+    "items": [
+      {"product_id": 1, "quantity": 2},
+      {"product_id": 2, "quantity": 1}
+    ]
+  }'
+```
+
+#### Get Today's Report
+```bash
+curl http://localhost:8080/api/report/today
+```
+
+#### Get Report by Date Range
+```bash
+curl "http://localhost:8080/api/report?start_date=2026-01-01&end_date=2026-02-01"
+```
+
 ## Architecture
 
 This project follows the clean architecture pattern:
@@ -190,6 +286,7 @@ This project follows the clean architecture pattern:
 - **Repository**: Manages data access using PostgreSQL
 - **Model**: Defines database entities
 - **DTO**: Defines API request/response structures
+- **UnitOfWork (UoW)**: Manages transaction boundaries and provides atomic operations across multiple repositories
 
 ### Data Flow
 
@@ -197,6 +294,21 @@ This project follows the clean architecture pattern:
 HTTP Request → Handler (DTOs) → Service (Models) → Repository (DB) → PostgreSQL
                   ↓
            Response DTOs
+```
+
+### Unit of Work Pattern
+
+The Unit of Work pattern is used to manage transaction boundaries and ensure atomicity across multiple repository operations:
+
+```go
+// All operations within UoW.Do() are executed in a single transaction
+unitOfWork.Do(ctx, func(ctx context.Context) error {
+    // These operations will commit or rollback together
+    transactionRepo.Create(ctx, transaction)
+    transactionDetailRepo.Create(ctx, detail)
+    productRepo.UpdateStock(ctx, productID, quantity)
+    return nil
+})
 ```
 
 ## Migrations
