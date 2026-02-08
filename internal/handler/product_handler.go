@@ -23,7 +23,8 @@ func (h *ProductHandler) HandleProducts(w http.ResponseWriter, r *http.Request) 
 
 	switch r.Method {
 	case http.MethodGet:
-		products, err := h.service.GetAll()
+		name := r.URL.Query().Get("name")
+		products, err := h.service.GetAll(name)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return

@@ -7,7 +7,7 @@ import (
 )
 
 type ProductRepository interface {
-	FindAll() ([]model.Product, error)
+	FindAll(name string) ([]model.Product, error)
 	FindByID(id int) (*model.Product, error)
 	Create(product model.Product) (*model.Product, error)
 	Update(id int, product model.Product) (*model.Product, error)
@@ -22,14 +22,19 @@ func NewProductRepository(db *sql.DB) ProductRepository {
 	return &productRepository{db: db}
 }
 
-func (r *productRepository) FindAll() ([]model.Product, error) {
+func (r *productRepository) FindAll(name string) ([]model.Product, error) {
 	query := `
 		SELECT p.id, p.name, p.price, p.stock, p.category_id, c.id, c.name, c.description
 		FROM products p
 		LEFT JOIN categories c ON p.category_id = c.id
-		ORDER BY p.id
 	`
-	rows, err := r.db.Query(query)
+	var args []interface{}
+	if name != "" {
+		query += " WHERE p.name ILIKE $1"
+		args = append(args, "%"+name+"%")
+	}
+	query += " ORDER BY p.id"
+	rows, err := r.db.Query(query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query products: %w", err)
 	}
